@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import { Professionals } from '../models/Professional.models.js';
 import EmailOtp from '../models/EmailOtp.models.js';
 import { sendOtpToMail } from '../utils/sendOtpOnMail.js';
+import { uploadOnCloudinary } from '../utils/cloudinary.js';
 
 // Generate Access and Refresh Tokens
 const generateAccessAndRefreshToken = async (userId) => {
@@ -33,10 +34,10 @@ const generateAccessAndRefreshToken = async (userId) => {
 
 // Register Professional
 const registerProfessional = asyncHandler(async (req, res) => {
+  console.log('user', req.user);
   try {
     const {
       name,
-      email,
       phone,
       specialization,
       experience,
@@ -50,7 +51,6 @@ const registerProfessional = asyncHandler(async (req, res) => {
     if (
       [
         name,
-        email,
         phone,
         specialization,
         experience,
@@ -63,42 +63,72 @@ const registerProfessional = asyncHandler(async (req, res) => {
       throw new ApiError(400, 'All fields are required');
     }
 
-    // Check if professional already exists
-    const existingProfessional = await Professionals.findOne({ email });
-    if (existingProfessional) {
-      throw new ApiError(409, 'Professional with this email already exists');
+    const avatarLocalPath = req.files?.avatar[0]?.path;
+    const addharCardLocalPath = req.files?.addharCard[0]?.path;
+    const panCardLocalPath = req.files?.panCard[0]?.path;
+
+    if (!avatarLocalPath || !addharCardLocalPath || !panCardLocalPath) {
+      throw new ApiError(400, 'All files are required!');
     }
 
-    // Create new professional
-    const professional = new Professionals({
-      name,
-      phone,
-      specialization,
-      experience,
-      address,
-      city,
-      state,
-      pinCode,
-      role,
-      profilePicture,
-      addharCard,
-      panCard,
-    });
+    // upload on cloudinary
+    const avatar = await uploadOnCloudinary(avatarLocalPath);
+    const addharCard = await uploadOnCloudinary(addharCardLocalPath);
+    const panCard = await uploadOnCloudinary(panCardLocalPath);
 
-    await professional.save();
+    if (!avatar) {
+      throw new ApiError(400, 'Avatar not uploaded. Please try again.');
+    }
+    if (!addharCard) {
+      throw new ApiError(400, 'Aadhar card not uploaded. Please try again.');
+    }
+    if (!panCard) {
+      throw new ApiError(400, 'PAN card not uploaded. Please try again.');
+    }
 
-    if (!professional) {
-      throw new ApiError(500, 'Failed to register professional');
+    const professionalDetails = await Professionals.findById(req.user._id);
+    if (!professionalDetails || !professionalDetails.isVerified) {
+      throw new ApiError(
+        403,
+        'Professional is not verified. Please verify your email first.'
+      );
+    }
+
+    if (
+      professionalDetails.name &&
+      professionalDetails.phone &&
+      professionalDetails.address
+    ) {
+      throw new ApiError(
+        400,
+        'Details are already filled. You cannot update them again.'
+      );
+    }
+
+    // Update professional details
+    professionalDetails.name = name;
+    professionalDetails.phone = phone;
+    professionalDetails.specialization = specialization;
+    professionalDetails.experience = experience;
+    professionalDetails.address = address;
+    professionalDetails.city = city;
+    professionalDetails.state = state;
+    professionalDetails.pinCode = pinCode;
+    professionalDetails.profilePicture = avatar?.secure_url;
+    professionalDetails.addharCard = addharCard?.secure_url;
+    professionalDetails.panCard = panCard?.secure_url;
+    professionalDetails.isAvailable = true; // Set availability to true
+
+    await professionalDetails.save();
+
+    if (!professionalDetails) {
+      throw new ApiError(500, 'Failed to fill professional details');
     }
 
     return res
-      .status(201)
+      .status(200)
       .json(
-        new ApiResponse(
-          201,
-          { professional },
-          'Professional registered successfully!'
-        )
+        new ApiResponse(200, {}, 'Professional details filled successfully!')
       );
   } catch (error) {
     throw error;
@@ -210,4 +240,29 @@ const verifyOtp = asyncHandler(async (req, res) => {
     );
 });
 
-export { registerProfessional, verifyOtp, sendMail };
+const fetchDetails = asyncHandler(async (req, res) => {
+  try {
+    // Fetch professional details by ID
+    const professional = await Professionals.findById(req.user._id).select(
+      '-refreshToken'
+    );
+
+    if (!professional) {
+      throw new ApiError(404, 'Professional not found');
+    }
+
+    res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          professional,
+          'Professional details fetched successfully'
+        )
+      );
+  } catch (error) {
+    throw error;
+  }
+});
+
+export { registerProfessional, verifyOtp, sendMail, fetchDetails };

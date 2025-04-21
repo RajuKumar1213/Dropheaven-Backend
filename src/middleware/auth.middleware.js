@@ -25,7 +25,7 @@ export const verifyJWT = asyncHandler(async (req, _, next) => {
           '-refreshToken'
         );
         break;
-      case 'CaCs':
+      case 'Professional':
         user = await Professionals.findById(decodedToken._id).select(
           '-refreshToken'
         );
