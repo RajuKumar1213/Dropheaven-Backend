@@ -34,7 +34,6 @@ const generateAccessAndRefreshToken = async (userId) => {
 
 // Register Professional
 const registerProfessional = asyncHandler(async (req, res) => {
-  console.log('user', req.user);
   try {
     const {
       name,
@@ -240,7 +239,37 @@ const verifyOtp = asyncHandler(async (req, res) => {
     );
 });
 
+const professionalLogout = asyncHandler(async (req, res) => {
+  await Professionals.findByIdAndUpdate(
+    req.user._id,
+
+    {
+      $unset: { refreshToken: 1 },
+    },
+    {
+      new: true,
+    }
+  );
+
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  return res
+    .status(200)
+    .clearCookie('accessToken', options)
+    .clearCookie('refreshToken', options)
+    .json(new ApiResponse(200, {}, 'User Logged out Successfully.'));
+});
+
 const fetchDetails = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'Professional') {
+    throw new ApiError(
+      403,
+      'Access denied.Only Professionals access this route.'
+    );
+  }
   try {
     // Fetch professional details by ID
     const professional = await Professionals.findById(req.user._id).select(
@@ -256,13 +285,22 @@ const fetchDetails = asyncHandler(async (req, res) => {
       .json(
         new ApiResponse(
           200,
-          professional,
+          { professional, role: req.user.role },
           'Professional details fetched successfully'
         )
       );
   } catch (error) {
-    throw error;
+    throw new ApiError(
+      500,
+      'An error occurred while fetching professional details'
+    );
   }
 });
 
-export { registerProfessional, verifyOtp, sendMail, fetchDetails };
+export {
+  registerProfessional,
+  verifyOtp,
+  sendMail,
+  fetchDetails,
+  professionalLogout,
+};

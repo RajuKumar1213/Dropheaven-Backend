@@ -202,7 +202,10 @@ const verifyOtp = asyncHandler(async (req, res) => {
 const getCustomerAccountDetails = asyncHandler(async (req, res) => {
   // 👮‍♂️ Check if the logged-in user is a Customer
   if (req.user.role !== 'Customer') {
-    throw new ApiError(403, 'Only customers can access this route');
+    throw new ApiError(
+      403,
+      'Access denied. Only Customers can access this route.'
+    );
   }
 
   // 🧠 Fetch from DB just to be safe (in case you want the latest data)
@@ -217,11 +220,13 @@ const getCustomerAccountDetails = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(
-      new ApiResponse(200, customer, 'Customer account fetched successfully')
+      new ApiResponse(
+        200,
+        { customer, role: req.user.role },
+        'Customer account fetched successfully'
+      )
     );
 });
-
-
 
 export {
   updateCustomerDetails,

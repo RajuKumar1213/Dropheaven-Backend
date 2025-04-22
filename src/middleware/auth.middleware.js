@@ -37,8 +37,6 @@ export const verifyJWT = asyncHandler(async (req, _, next) => {
         throw new ApiError(401, 'Invalid user type.');
     }
 
-    console.log('user', user);
-
     if (!user) {
       throw new ApiError(401, 'Invalid user or user not found.');
     }

@@ -20,6 +20,7 @@ const customerSchema = new mongoose.Schema(
       type: String,
       unique: true,
       trim: true,
+      sparse: true,
       match: /^\d{10}$/, // Assuming a 10-digit phone number
     },
     address: {

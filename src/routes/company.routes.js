@@ -5,10 +5,9 @@ import { upload } from '../middleware/multer.middleware.js';
 import {
   sendMail,
   verifyOtp,
-  registerProfessional,
+  registerCompany,
   fetchDetails,
-  professionalLogout,
-} from '../controllers/professional.controller.js';
+} from '../controllers/company.controller.js';
 
 const router = Router();
 
@@ -18,23 +17,9 @@ router.route('/verify-otp').post(verifyOtp);
 // secure route
 router.route('/fill-details').patch(
   verifyJWT,
-  upload.fields([
-    {
-      name: 'avatar',
-      maxCount: 1,
-    },
-    {
-      name: 'addharCard',
-      maxCount: 1,
-    },
-    {
-      name: 'panCard',
-      maxCount: 1,
-    },
-  ]),
-  registerProfessional
+  upload.single('profilePicture'),
+  registerCompany
 );
 router.route('/fetch-details').get(verifyJWT, fetchDetails);
-router.route('/logout').get(verifyJWT, professionalLogout);
 
 export default router;

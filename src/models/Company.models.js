@@ -15,12 +15,14 @@ const companySchema = new mongoose.Schema(
     phone: {
       type: String,
       unique: true,
+      sparse: true,
       trim: true,
       match: /^\d{10}$/, // Assuming a 10-digit phone number
     },
     watsappNumber: {
       type: String,
       unique: true,
+      sparse: true,
       trim: true,
       match: /^\d{10}$/, // Assuming a 10-digit phone number
     },
@@ -43,9 +45,11 @@ const companySchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    profilePicture: {
+    city: {
       type: String,
+      trim: true,
     },
+
     verificationToken: {
       type: String,
     },

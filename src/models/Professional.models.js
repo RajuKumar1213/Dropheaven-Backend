@@ -17,6 +17,7 @@ const professionalSchema = new mongoose.Schema(
     phone: {
       type: String,
       trim: true,
+      sparse: true,
     },
     specialization: {
       type: String,
