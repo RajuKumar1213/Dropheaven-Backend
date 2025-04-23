@@ -12,7 +12,6 @@ const transporter = nodemailer.createTransport({
 // Function to send OTP email
 const sendOtpEmail = async (toEmail, otp) => {
   if (!toEmail) {
-    console.error('No email provided to sendOtpToMail');
     throw new Error('Recipient email is required');
   }
 
