@@ -1,5 +1,4 @@
 import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 const customerSchema = new mongoose.Schema(
@@ -15,6 +14,7 @@ const customerSchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
       match: /.+\@.+\..+/,
+      index: true, // ⚡ Index for faster email-based lookup
     },
     phone: {
       type: String,
@@ -22,6 +22,7 @@ const customerSchema = new mongoose.Schema(
       trim: true,
       sparse: true,
       match: /^\d{10}$/, // Assuming a 10-digit phone number
+      index: true, // ⚡ Index for faster phone-based lookup
     },
     address: {
       type: String,
@@ -29,14 +30,12 @@ const customerSchema = new mongoose.Schema(
     },
     refreshToken: {
       type: String,
-    },
-    address: {
-      type: String,
-      trim: true,
+      index: true, // ⚡ Index for faster token-based lookup
     },
     isVerified: {
       type: Boolean,
       default: false,
+      index: true, // Optional but useful if filtering by verification status
     },
     state: {
       type: String,
@@ -51,6 +50,7 @@ const customerSchema = new mongoose.Schema(
     },
     verificationToken: {
       type: String,
+      index: true, // ⚡ Very useful for OTP verification flow
     },
     verificationTokenExpiry: {
       type: Date,
@@ -59,20 +59,7 @@ const customerSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// hash the password before saving it to the database
-// customerSchema.pre('save', async function (next) {
-//   if (!this.isModified('password')) return next();
-
-//   this.password = await bcrypt.hash(this.password, 10);
-//   next();
-// });
-
-// // compare the hashed password with entered password
-// customerSchema.methods.isPasswordCorrect = async function (password) {
-//   return await bcrypt.compare(password, this.password);
-// };
-
-// create a method for generating accessToken
+// 🚀 Access token method
 customerSchema.methods.generateAccessToken = function () {
   return jwt.sign(
     {
@@ -87,7 +74,7 @@ customerSchema.methods.generateAccessToken = function () {
   );
 };
 
-// Create a method to generate Refresh Token
+// 🔁 Refresh token method
 customerSchema.methods.generateRefreshToken = function () {
   return jwt.sign(
     {

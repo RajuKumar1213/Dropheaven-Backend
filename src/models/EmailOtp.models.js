@@ -4,6 +4,8 @@ const emailOtpSchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
+    index: true, // ⚡ Index for faster email-based lookup
+    unique: true,
   },
   otp: {
     type: String,

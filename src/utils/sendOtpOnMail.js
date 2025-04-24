@@ -15,7 +15,6 @@ const sendOtpEmail = async (toEmail, otp) => {
     throw new Error('Recipient email is required');
   }
 
-  console.log(toEmail, 'email in sendOtpEmail');
   try {
     const mailOptions = {
       from: 'maddison53@ethereal.email',

@@ -25,9 +25,13 @@ app.use(cookieParser());
 import professionalRouter from './routes/professional.routes.js';
 import customerRouter from './routes/customer.routes.js';
 import companyRouter from './routes/company.routes.js';
+import serviceRouter from './routes/service.routes.js';
+import taskRouter from './routes/task.routes.js';
 
 app.use('/api/v1/professional', professionalRouter);
 app.use('/api/v1/customer', customerRouter);
 app.use('/api/v1/company', companyRouter);
+app.use('/api/v1/services', serviceRouter);
+app.use('/api/v1/task', taskRouter);
 
 export { app };
