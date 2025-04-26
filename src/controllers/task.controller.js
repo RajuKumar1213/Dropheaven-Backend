@@ -5,6 +5,8 @@ import { Company } from '../models/Company.models.js';
 import { TaskUpdate } from '../models/TaskUpdate.models.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { ApiError } from '../utils/ApiError.js';
+import { Document } from '../models/Document.models.js';
+import { uploadOnCloudinary } from '../utils/cloudinary.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import mongoose from 'mongoose';
 
@@ -19,33 +21,79 @@ const createTask = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'Service not found');
   }
 
-  // Find an active company to assign the task to
-  // In a production environment, you might have a more sophisticated assignment logic
+  // Find an active company
   const companies = await Company.find({});
   if (!companies.length) {
     throw new ApiError(400, 'No active company found to handle your request');
   }
-
   const company = companies[0];
 
-  // Create the task
+  // Create the task first
   const task = await Task.create({
     customer: customerId,
     service: serviceId,
     company: company._id,
     customerRequirements,
+    status: 'NEW', // Start with NEW status regardless of documents
   });
 
-  // Create an initial task update
+  // Handle document uploads if any
+  let uploadedDocuments = [];
+  if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+    // Upload each file and create document records
+    const uploadPromises = req.files.map(async (file) => {
+      try {
+        const cloudinaryResult = await uploadOnCloudinary(file.path);
+
+        if (!cloudinaryResult) {
+          console.error(`Failed to upload file: ${file.originalname}`);
+          return null;
+        }
+
+        // Create document record
+        const document = await Document.create({
+          name: file.originalname,
+          description:
+            req.body.documentDescriptions?.[file.fieldname] ||
+            `Document for ${service.name}`,
+          fileUrl: cloudinaryResult.secure_url,
+          fileType: file.mimetype,
+          fileSize: file.size,
+          task: task._id,
+          uploadedBy: customerId,
+          uploadedByRole: 'Customer',
+        });
+
+        return document;
+      } catch (error) {
+        console.error(`Error uploading document ${file.originalname}:`, error);
+        return null;
+      }
+    });
+
+    uploadedDocuments = await Promise.all(uploadPromises);
+    uploadedDocuments = uploadedDocuments.filter((doc) => doc !== null);
+
+    // If documents were successfully uploaded, update task status
+    if (uploadedDocuments.length > 0) {
+      task.status = 'DOCUMENTS_UPLOADED';
+      await task.save();
+    }
+  }
+
+  // Create task update record
   await TaskUpdate.create({
     task: task._id,
-    message: 'Task created',
-    newStatus: 'NEW',
+    message:
+      uploadedDocuments.length > 0
+        ? `Task created with ${uploadedDocuments.length} document(s)`
+        : 'Task created without documents',
+    newStatus: task.status,
     updatedBy: customerId,
     updatedByRole: 'Customer',
   });
 
-  // Return the created task with service details
+  // Return the created task
   const createdTask = await Task.findById(task._id)
     .populate('service', 'name category')
     .populate({
@@ -54,7 +102,8 @@ const createTask = asyncHandler(async (req, res) => {
         path: 'category',
         select: 'name',
       },
-    });
+    })
+    .populate('documents');
 
   return res
     .status(201)
@@ -397,6 +446,13 @@ const getCompanyTasks = asyncHandler(async (req, res) => {
 
   const aggregatePipeline = [
     {
+      $match: {
+        company: req.user._id,
+        status: { $in: ['DOCUMENTS_UPLOADED', 'NEW'] },
+      },
+    },
+
+    {
       $lookup: {
         from: 'services',
         localField: 'service',
@@ -468,6 +524,8 @@ const getCompanyTasks = asyncHandler(async (req, res) => {
         serviceName: '$serviceDetails.name',
         customerName: '$customerDetails.name',
         customerEmail: '$customerDetails.email',
+        customerProfile: '$customerDetails.profilePicture',
+        customerId: '$customerDetails._id',
         professionalName: {
           $cond: {
             if: '$professionalDetails',
@@ -695,7 +753,114 @@ const updateTaskPriority = asyncHandler(async (req, res) => {
   );
 });
 
-// get professional tasks which is assigned to him/her by the company
+// upload documents of customer if not uploaded (By company), if document is shared on watsapp or email
+
+const uploadCompanyDocuments = asyncHandler(async (req, res) => {
+  const { taskId } = req.params;
+  const userId = req.user._id;
+  const userRole = req.user.role;
+
+  const task = await Task.findById(taskId);
+  if (!task) throw new ApiError(404, 'Task not found');
+
+  if (userRole !== 'Company' || task.company.toString() !== userId.toString())
+    throw new ApiError(403, 'You cannot upload to this task');
+
+  const existingDocs = await Document.find({ task: taskId });
+  if (existingDocs.length > 0)
+    throw new ApiError(400, 'Customer already uploaded documents');
+
+  let uploadedDocuments = [];
+
+  if (req.files?.length > 0) {
+    const uploadPromises = req.files.map(async (file) => {
+      const cloudinaryResult = await uploadOnCloudinary(file.path);
+      const document = await Document.create({
+        name: file.originalname,
+        description: `Company uploaded document for ${task.service}`,
+        fileUrl: cloudinaryResult.secure_url,
+        fileType: file.mimetype,
+        fileSize: file.size,
+        task: taskId,
+        uploadedBy: userId,
+        uploadedByRole: 'Company',
+      });
+      return document;
+    });
+
+    uploadedDocuments = await Promise.all(uploadPromises);
+
+    task.status = 'DOCUMENTS_UPLOADED';
+    await task.save();
+
+    await TaskUpdate.create({
+      task: task._id,
+      message: `Company uploaded ${uploadedDocuments.length} document(s)`,
+      newStatus: task.status,
+      updatedBy: userId,
+      updatedByRole: 'Company',
+    });
+  }
+
+  res
+    .status(201)
+    .json(new ApiResponse(201, uploadedDocuments, 'Documents uploaded'));
+});
+
+// upload final document by the professionals after completion of task
+const uploadFinalDocsByProfessional = asyncHandler(async (req, res) => {
+  const { taskId } = req.params;
+  const userId = req.user._id;
+  const userRole = req.user.role;
+
+  const task = await Task.findById(taskId);
+  if (!task) throw new ApiError(404, 'Task not found');
+
+  if (
+    userRole !== 'Professional' ||
+    task.professional.toString() !== userId.toString()
+  )
+    throw new ApiError(403, 'You are not assigned to this task');
+
+  if (task.status !== 'COMPLETED')
+    throw new ApiError(
+      400,
+      'You can upload final docs only in COMPLETED status'
+    );
+
+  let uploadedDocuments = [];
+
+  if (req.files?.length > 0) {
+    const uploadPromises = req.files.map(async (file) => {
+      const cloudinaryResult = await uploadOnCloudinary(file.path);
+      const document = await Document.create({
+        name: file.originalname,
+        description: `Final work uploaded by professional`,
+        fileUrl: cloudinaryResult.secure_url,
+        fileType: file.mimetype,
+        fileSize: file.size,
+        task: taskId,
+        uploadedBy: userId,
+        uploadedByRole: 'Professional',
+      });
+      return document;
+    });
+
+    uploadedDocuments = await Promise.all(uploadPromises);
+
+    await TaskUpdate.create({
+      task: task._id,
+      message: `Professional uploaded ${uploadedDocuments.length} final document(s)`,
+      newStatus: task.status,
+      updatedBy: userId,
+      updatedByRole: 'Professional',
+    });
+  }
+
+  res
+    .status(201)
+    .json(new ApiResponse(201, uploadedDocuments, 'Final documents uploaded'));
+});
 
 // Export all functions
 export {
@@ -707,4 +872,6 @@ export {
   getProfessionalTasks,
   assignTaskToProfessional,
   updateTaskPriority,
+  uploadCompanyDocuments,
+  uploadFinalDocsByProfessional,
 };

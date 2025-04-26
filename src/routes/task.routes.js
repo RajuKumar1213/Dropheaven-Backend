@@ -11,17 +11,30 @@ import {
   getProfessionalTasks,
   getTaskDetails,
   updateTaskPriority,
+  uploadCompanyDocuments,
+  uploadFinalDocsByProfessional,
 } from '../controllers/task.controller.js';
 import {
   isCustomer,
   isCompany,
   isProfessional,
 } from '../middleware/roleCheck.middleware.js';
+import {
+  cleanupFiles,
+  documentUpload,
+} from '../middleware/multer.middleware.js';
 
 // Public routes (no verifyJWTentication needed)
 
 // verifyJWTenticated routes
-router.post('/new', verifyJWT, isCustomer, createTask);
+router.post(
+  '/new',
+  verifyJWT,
+  isCustomer,
+  documentUpload,
+  cleanupFiles,
+  createTask
+);
 router.get('/customer', verifyJWT, isCustomer, getCustomerTasks);
 router.get('/customer/:taskId', verifyJWT, isCustomer, getTaskDetails);
 router.post('/customer/:taskId/updates', verifyJWT, isCustomer, addTaskUpdate);
@@ -51,6 +64,24 @@ router.post(
   verifyJWT,
   isProfessional,
   addTaskUpdate
+);
+
+router.post(
+  '/company/:taskId/upload-document',
+  verifyJWT,
+  isCompany,
+  documentUpload,
+  cleanupFiles,
+  uploadCompanyDocuments
+);
+
+router.post(
+  '/professional/:taskId/upload-document',
+  verifyJWT,
+  isProfessional,
+  documentUpload,
+  cleanupFiles,
+  uploadFinalDocsByProfessional
 );
 
 export default router;

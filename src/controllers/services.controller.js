@@ -46,10 +46,47 @@ const createServiceCategory = asyncHandler(async (req, res) => {
 
 // Get all services
 const getAllServices = asyncHandler(async (req, res) => {
-  const services = await Service.find({}).populate('category', 'name');
+  const groupedServices = await Service.aggregate([
+    {
+      $lookup: {
+        from: 'servicecategories',
+        localField: 'category',
+        foreignField: '_id',
+        as: 'categories',
+      },
+    },
+    {
+      $unwind: '$categories',
+    },
+    {
+      $group: {
+        _id: '$categories.name',
+        services: {
+          $push: {
+            name: '$name',
+            description: '$description',
+            _id: '$_id',
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        category: '$_id',
+        services: 1,
+      },
+    },
+    {
+      $sort: { category: 1 }, // optional: alphabetical sorting
+    },
+  ]);
+
   return res
     .status(200)
-    .json(new ApiResponse(200, services, 'All services fetched'));
+    .json(
+      new ApiResponse(200, groupedServices, 'All services grouped by category')
+    );
 });
 
 // Get service by ID

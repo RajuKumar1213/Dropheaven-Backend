@@ -6,6 +6,8 @@ import bcrypt from 'bcryptjs';
 import { Company } from '../models/Company.models.js';
 import EmailOtp from '../models/EmailOtp.models.js';
 import { sendOtpToMail } from '../utils/sendOtpOnMail.js';
+import { Professionals } from '../models/Professional.models.js';
+import { Task } from '../models/Task.models.js';
 
 // Generate Access and Refresh Tokens
 const generateAccessAndRefreshToken = async (userId) => {
@@ -213,4 +215,100 @@ const sendMail = asyncHandler(async (req, res) => {
   res.status(200).json(new ApiResponse(200, otp, 'OTP sent successfully'));
 });
 
-export { registerCompany, verifyOtp, fetchDetails, sendMail };
+const getAllProfessionals = asyncHandler(async (req, res) => {
+  const professionals = await Professionals.aggregate([
+    {
+      $match: {},
+    },
+    {
+      $project: {
+        _id: 1,
+        rating: 1,
+        role: 1,
+        profilePicture: 1,
+        specialization: 1,
+        state: 1,
+        name: 1,
+        experience: 1,
+      },
+    },
+  ]);
+
+  if (!professionals) throw new ApiError(404, 'No professionals found');
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, professionals, 'All professionals fetched'));
+});
+
+// get all assigned task by the company to professionals
+const getAllAssignedTasks = asyncHandler(async (req, res) => {
+  const assignedTask = await Task.aggregate([
+    {
+      $match: {
+        company: req.user._id,
+        status: { $in: ['ASSIGNED', 'IN_PROGRESS', 'COMPLETED'] },
+      },
+    },
+    {
+      $lookup: {
+        from: 'professionals',
+        localField: 'professional',
+        foreignField: '_id',
+        as: 'professional',
+      },
+    },
+    {
+      $unwind: '$professional',
+    },
+    {
+      $lookup: {
+        from: 'customers',
+        localField: 'customer',
+        foreignField: '_id',
+        as: 'customer',
+      },
+    },
+    {
+      $unwind: '$customer',
+    },
+    {
+      $sort: {
+        assignedAt: -1,
+      },
+    },
+    {
+      $project: {
+        _id: 1,
+        status: 1,
+        createdAt: 1,
+        professional: {
+          _id: '$professional._id',
+          name: '$professional.name',
+          profilePicture: '$professional.profilePicture',
+        },
+        customer: {
+          _id: '$customer._id',
+          name: '$customer.name',
+          profilePicture: '$customer.profilePicture',
+        },
+        assignedAt: 1,
+      },
+    },
+  ]);
+
+  if (!assignedTask) throw new ApiError(404, 'No assigned tasks found');
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, assignedTask, 'All assigned tasks fetched'));
+});
+
+export {
+  registerCompany,
+  verifyOtp,
+  fetchDetails,
+  sendMail,
+  getAllProfessionals,
+  getAllAssignedTasks,
+};
