@@ -60,12 +60,16 @@ const getAllServices = asyncHandler(async (req, res) => {
     },
     {
       $group: {
-        _id: '$categories.name',
+        _id: {
+          name: '$categories.name',
+          order: '$categories.order', // 🛠️ Now capturing order too!
+        },
         services: {
           $push: {
             name: '$name',
             description: '$description',
             _id: '$_id',
+            order: '$order', // 🛠️ Include order info
           },
         },
       },
@@ -73,12 +77,13 @@ const getAllServices = asyncHandler(async (req, res) => {
     {
       $project: {
         _id: 0,
-        category: '$_id',
+        category: '$_id.name',
+        order: '$_id.order',
         services: 1,
       },
     },
     {
-      $sort: { category: 1 }, // optional: alphabetical sorting
+      $sort: { order: 1 }, // 🛠️ Now proper sorting will happen
     },
   ]);
 

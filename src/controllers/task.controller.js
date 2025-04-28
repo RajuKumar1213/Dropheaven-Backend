@@ -581,8 +581,6 @@ const getProfessionalTasks = asyncHandler(async (req, res) => {
   // Total task count (before pagination)
   const total = await Task.countDocuments(matchStage);
 
-  console.log('Total tasks:', total);
-
   const aggregatePipeline = [
     {
       $match: matchStage,
@@ -613,6 +611,7 @@ const getProfessionalTasks = asyncHandler(async (req, res) => {
         as: 'documents',
       },
     },
+
     {
       $addFields: {
         documentCount: { $size: '$documents' },
@@ -627,6 +626,7 @@ const getProfessionalTasks = asyncHandler(async (req, res) => {
         updatedAt: 1,
         assignedAt: 1,
         serviceName: '$serviceDetails.name',
+        customerProfile: '$customerDetails.profilePicture',
         customerName: '$customerDetails.name',
         customerEmail: '$customerDetails.email',
         documentCount: 1,
@@ -650,7 +650,7 @@ const getProfessionalTasks = asyncHandler(async (req, res) => {
           limit: parsedLimit,
           totalPages: Math.ceil(total / parsedLimit),
         },
-        tasks: tasks,
+        tasks,
       },
       'Professional tasks fetched successfully'
     )

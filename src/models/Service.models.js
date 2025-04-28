@@ -16,6 +16,10 @@ const serviceSchema = new mongoose.Schema(
       ref: 'ServiceCategory',
       required: true,
     },
+    order: {
+      type: Number, // 🚀 Add this
+      default: 100, // Default high so unordered ones stay below
+    },
   },
   {
     timestamps: true,

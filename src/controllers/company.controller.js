@@ -234,11 +234,31 @@ const getAllProfessionals = asyncHandler(async (req, res) => {
     },
   ]);
 
-  if (!professionals) throw new ApiError(404, 'No professionals found');
+  if (!professionals || professionals.length === 0) {
+    throw new ApiError(404, 'No professionals found');
+  }
+
+  // Filter out professionals with missing required data
+  const filteredProfessionals = professionals.filter(
+    (professional) =>
+      professional.name &&
+      professional.specialization &&
+      professional.profilePicture
+  );
+
+  if (filteredProfessionals.length === 0) {
+    throw new ApiError(404, 'No professionals with complete data found');
+  }
 
   return res
     .status(200)
-    .json(new ApiResponse(200, professionals, 'All professionals fetched'));
+    .json(
+      new ApiResponse(
+        200,
+        filteredProfessionals,
+        'Professionals with complete data fetched'
+      )
+    );
 });
 
 // get all assigned task by the company to professionals

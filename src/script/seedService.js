@@ -87,12 +87,20 @@ const servicesData = [
     ],
   },
   {
-    categoryName: 'OTHER SERVICES',
+    categoryName: 'COMPANY SERVICES',
     categoryDescription: 'Other registration services',
     services: [
       {
         name: 'NGO DARPAN (NITI AYOG)',
         description: 'Registration on NGO Darpan portal',
+      },
+      {
+        name: 'RNI REGISTRATION',
+        description: 'Registration with Registrar of Newspapers for India',
+      },
+      {
+        name: 'POLITICAL PARTY REGISTRATION',
+        description: 'Registration of political party with Election Commission',
       },
       {
         name: 'E-ANUDAN REGISTRATION',
@@ -105,14 +113,6 @@ const servicesData = [
       {
         name: 'FCRA REGISTRATION',
         description: 'Registration under Foreign Contribution Regulation Act',
-      },
-      {
-        name: 'RNI REGISTRATION',
-        description: 'Registration with Registrar of Newspapers for India',
-      },
-      {
-        name: 'POLITICAL PARTY REGISTRATION',
-        description: 'Registration of political party with Election Commission',
       },
     ],
   },
@@ -192,6 +192,16 @@ const servicesData = [
   },
 ];
 
+// Define order values for categories (lower number appears first)
+const categoryOrders = {
+  'COMPANY SERVICES': 1,
+  'REGISTRATION SERVICES': 2,
+  'COMPANY REGISTRATION': 3,
+  'TAX AND COMPLIANCE REGISTRATION': 4,
+  'BUSINESS AND INDUSTRY REGISTRATION': 5,
+  'DEVELOPMENT SERVICES': 6,
+};
+
 // Function to seed data
 const seedData = async () => {
   try {
@@ -203,19 +213,31 @@ const seedData = async () => {
 
     // Insert each category and its services
     for (const item of servicesData) {
-      // Create category
+      // Create category with order value
       const category = await ServiceCategory.create({
         name: item.categoryName,
         description: item.categoryDescription,
+        order: categoryOrders[item.categoryName] || 100, // Set order based on predefined values
       });
 
-      console.log(`Created category: ${category.name}`);
+      console.log(
+        `Created category: ${category.name} with order: ${category.order}`
+      );
+
+      const serviceOrders = {
+        'NGO DARPAN (NITI AYOG)': 1,
+        'RNI REGISTRATION': 2,
+        'POLITICAL PARTY REGISTRATION': 3,
+        'FCRA REGISTRATION': 4,
+        // other services can go after, no stress
+      };
 
       // Create services for this category
       for (const serviceData of item.services) {
         const service = await Service.create({
           ...serviceData,
           category: category._id,
+          order: serviceOrders[serviceData.name] || 100, // 🛠️ Set service order
         });
 
         console.log(`Created service: ${service.name}`);
