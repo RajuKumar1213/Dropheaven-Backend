@@ -6,6 +6,7 @@ import {
   addTaskUpdate,
   assignTaskToProfessional,
   createTask,
+  deleteDocument,
   getCompanyTasks,
   getCustomerTasks,
   getProfessionalTasks,
@@ -82,6 +83,13 @@ router.post(
   documentUpload,
   cleanupFiles,
   uploadFinalDocsByProfessional
+);
+
+router.delete(
+  '/professional/:taskId/delete',
+  verifyJWT,
+  isProfessional,
+  deleteDocument
 );
 
 export default router;

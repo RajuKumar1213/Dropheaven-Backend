@@ -260,8 +260,14 @@ const getTaskDetails = asyncHandler(async (req, res) => {
     {
       $lookup: {
         from: 'documents',
-        localField: '_id',
-        foreignField: 'task',
+        let: { taskId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: { $eq: ['$task', '$$taskId'] },
+            },
+          },
+        ],
         as: 'documents',
       },
     },
@@ -329,22 +335,7 @@ const getTaskDetails = asyncHandler(async (req, res) => {
           },
         },
         documents: 1,
-        updates: {
-          $map: {
-            input: {
-              $sortArray: { input: '$updates', sortBy: { createdAt: -1 } },
-            },
-            as: 'update',
-            in: {
-              _id: '$$update._id',
-              message: '$$update.message',
-              previousStatus: '$$update.previousStatus',
-              newStatus: '$$update.newStatus',
-              createdAt: '$$update.createdAt',
-              attachments: '$$update.attachments',
-            },
-          },
-        },
+        updates: 1,
       },
     },
   ]);
@@ -366,7 +357,7 @@ const getTaskDetails = asyncHandler(async (req, res) => {
 // Add update to task
 const addTaskUpdate = asyncHandler(async (req, res) => {
   const { taskId } = req.params;
-  const { message, newStatus, isInternal } = req.body;
+  const { newStatus, isInternal } = req.body;
   const userId = req.user._id;
   const userRole = req.user.role;
 
@@ -390,11 +381,14 @@ const addTaskUpdate = asyncHandler(async (req, res) => {
     );
   }
 
+  if (task.status === newStatus) {
+    throw new ApiError(403, 'You have already set this status.');
+  }
+
   const previousStatus = task.status;
 
   const taskUpdate = await TaskUpdate.create({
     task: new mongoose.Types.ObjectId(taskId),
-    message,
     previousStatus,
     newStatus: newStatus || previousStatus,
     updatedBy: new mongoose.Types.ObjectId(userId),
@@ -813,6 +807,10 @@ const uploadFinalDocsByProfessional = asyncHandler(async (req, res) => {
   const userId = req.user._id;
   const userRole = req.user.role;
 
+  if (req.files.length <= 0) {
+    throw new ApiError(204, 'No file uploaded');
+  }
+
   const task = await Task.findById(taskId);
   if (!task) throw new ApiError(404, 'Task not found');
 
@@ -833,33 +831,58 @@ const uploadFinalDocsByProfessional = asyncHandler(async (req, res) => {
   if (req.files?.length > 0) {
     const uploadPromises = req.files.map(async (file) => {
       const cloudinaryResult = await uploadOnCloudinary(file.path);
+
+      // Create the document and return it
       const document = await Document.create({
         name: file.originalname,
         description: `Final work uploaded by professional`,
         fileUrl: cloudinaryResult.secure_url,
         fileType: file.mimetype,
         fileSize: file.size,
-        task: taskId,
+        task: task._id,
         uploadedBy: userId,
         uploadedByRole: 'Professional',
       });
+
       return document;
     });
 
+    // Execute all promises and store results
     uploadedDocuments = await Promise.all(uploadPromises);
 
-    await TaskUpdate.create({
-      task: task._id,
-      message: `Professional uploaded ${uploadedDocuments.length} final document(s)`,
-      newStatus: task.status,
-      updatedBy: userId,
-      updatedByRole: 'Professional',
-    });
+    console.log(`Successfully uploaded ${uploadedDocuments.length} documents`);
+
+    // Create task update only if documents were uploaded
+    if (uploadedDocuments.length > 0) {
+      await TaskUpdate.create({
+        task: task._id,
+        message: `Professional uploaded ${uploadedDocuments.length} final document(s)`,
+        newStatus: task.status,
+        updatedBy: userId,
+        updatedByRole: 'Professional',
+      });
+    }
   }
 
   res
     .status(201)
     .json(new ApiResponse(201, uploadedDocuments, 'Final documents uploaded'));
+});
+
+const deleteDocument = asyncHandler(async (req, res) => {
+  const { taskId } = req.params;
+  const userRole = req.user.role;
+
+  if (userRole !== 'Professional') {
+    throw new ApiError(403, 'Only professionals can delete documents');
+  }
+
+  const task = await Document.findByIdAndDelete(taskId);
+  if (!task) throw new ApiError(404, 'Task not deleted succssfully.');
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, 'Document deleted successfully'));
 });
 
 // Export all functions
@@ -874,4 +897,5 @@ export {
   updateTaskPriority,
   uploadCompanyDocuments,
   uploadFinalDocsByProfessional,
+  deleteDocument,
 };

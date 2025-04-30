@@ -7,10 +7,8 @@ const taskUpdateSchema = new mongoose.Schema(
       ref: 'Task',
       required: true,
     },
-    message: {
+    rejectReason: {
       type: String,
-      required: true,
-      trim: true,
     },
     previousStatus: {
       type: String,
@@ -46,7 +44,7 @@ const taskUpdateSchema = new mongoose.Schema(
     },
     isInternal: {
       type: Boolean,
-      default: false, 
+      default: false,
     },
     attachments: [
       {
