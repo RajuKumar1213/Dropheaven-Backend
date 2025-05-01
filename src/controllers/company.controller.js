@@ -290,6 +290,17 @@ const getAllAssignedTasks = asyncHandler(async (req, res) => {
       },
     },
     {
+      $lookup: {
+        from: 'services',
+        localField: 'service',
+        foreignField: '_id',
+        as: 'service',
+      },
+    },
+    {
+      $unwind : "$service"
+    },
+    {
       $unwind: '$customer',
     },
     {
@@ -311,6 +322,10 @@ const getAllAssignedTasks = asyncHandler(async (req, res) => {
           _id: '$customer._id',
           name: '$customer.name',
           profilePicture: '$customer.profilePicture',
+        },
+        service: {
+          _id: '$service._id',
+          name: '$service.name'
         },
         assignedAt: 1,
       },
